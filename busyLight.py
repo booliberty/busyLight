@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import subprocess
+import re
 from lifxlan import LifxLAN
 
 idleDisplaySleepStatus = subprocess.run(["pmset", "-g", "assertions"],stdout=subprocess.PIPE,universal_newlines=True)
@@ -8,19 +9,26 @@ desiredBrightness=65535
 bulbColor=(64736, 65535, 32767, 3500)
 
 def checkIdleDisplaySleep():
+    blockingProcs = list()
     for assertion in idleDisplaySleepStatus.stdout.splitlines():
-        if "PreventUserIdleDisplaySleep" in assertion:
-            return assertion.split()[1]
+        if re.search("pid", assertion):
+            if re.search("(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)", assertion):
+                if re.search("(caffeinate|Amphetamine)", assertion) is None:
+                    blockingProcs.append(assertion)
+    return blockingProcs
 
-def checkForAction(PreventUserIdleDisplaySleep):
-    if int(PreventUserIdleDisplaySleep) == 0: 
-        print("Display Sleep NOT Currently Prevented")
+def checkForAction(blockingProcs):
+    if len(blockingProcs) == 0: 
+        print("No blocking processes found.")
+        print("Display Sleep NOT Currently Prevented.")
         toggleBulb("off")
-    elif int(PreventUserIdleDisplaySleep) > 0:
-        print("Display Sleep Currently Prevented")
+    elif len(blockingProcs) > 0:
+        print(str(len(blockingProcs))+" blocking processes found:")
+        print(blockingProcs)
+        print("Display Sleep Currently Prevented.")
         toggleBulb("on")
     else:
-        print("Something is wrong. IdleDisplaySleep assertions unknown.  Exiting.")
+        print("Something is wrong. PreventIdleDisplaySleep assertions unknown.  Exiting.")
         exit(1)
 
 def getBulbInfo():
